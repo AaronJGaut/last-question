@@ -1,7 +1,7 @@
 use bevy::{
+    app::AppExit,
     core::FixedTimestep,
     prelude::*,
-    app::{AppExit},
     sprite::collide_aabb::{collide, Collision},
 };
 
@@ -50,7 +50,6 @@ enum PhysicsSystem {
     Camera,
 }
 
-
 fn physics_system(mut query: Query<(&mut Transform, &Velocity)>) {
     for (mut transform, velocity) in query.iter_mut() {
         transform.translation += velocity.0 * PHYSICS_TIME_STEP;
@@ -96,11 +95,12 @@ fn input_system(
         };
     }
 
-    velocity.0.x = mobility.walk_speed * match mobility.walk_direction {
-        Direction::Left => -1.0,
-        Direction::Right => 1.0,
-        Direction::Neutral => 0.0,
-    };
+    velocity.0.x = mobility.walk_speed
+        * match mobility.walk_direction {
+            Direction::Left => -1.0,
+            Direction::Right => 1.0,
+            Direction::Neutral => 0.0,
+        };
 
     if keyboard_input.just_pressed(KeyCode::Space) {
         if mobility.on_ground {
@@ -178,8 +178,7 @@ fn startup_system(mut commands: Commands) {
     commands
         .spawn()
         .insert_bundle(OrthographicCameraBundle::new_2d())
-        .insert(WorldCamera)
-    ;
+        .insert(WorldCamera);
 
     commands.spawn_bundle(UiCameraBundle::default());
     commands
@@ -205,8 +204,7 @@ fn startup_system(mut commands: Commands) {
             jump_speed: 500.0,
             on_ground: false,
             walk_direction: Direction::Neutral,
-        })
-    ;
+        });
 
     commands
         .spawn()
@@ -223,8 +221,7 @@ fn startup_system(mut commands: Commands) {
             },
             ..Default::default()
         })
-        .insert(SolidCollider)
-    ;
+        .insert(SolidCollider);
 
     commands
         .spawn()
@@ -241,8 +238,7 @@ fn startup_system(mut commands: Commands) {
             },
             ..Default::default()
         })
-        .insert(SolidCollider)
-    ;
+        .insert(SolidCollider);
 }
 
 fn main() {
@@ -252,30 +248,27 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(INPUT_TIME_STEP as f64))
-                .with_system(input_system)
+                .with_system(input_system),
         )
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(PHYSICS_TIME_STEP as f64))
-                .with_system(
-                    gravity_system
-                        .label(PhysicsSystem::Gravity)
-                )
+                .with_system(gravity_system.label(PhysicsSystem::Gravity))
                 .with_system(
                     physics_system
                         .label(PhysicsSystem::Velocity)
-                        .after(PhysicsSystem::Gravity)
+                        .after(PhysicsSystem::Gravity),
                 )
                 .with_system(
                     player_solid_collision_system
                         .label(PhysicsSystem::Collision)
-                        .after(PhysicsSystem::Velocity)
+                        .after(PhysicsSystem::Velocity),
                 )
                 .with_system(
                     update_camera_system
                         .label(PhysicsSystem::Camera)
-                        .after(PhysicsSystem::Collision)
-                )
+                        .after(PhysicsSystem::Collision),
+                ),
         )
         .run();
 }
