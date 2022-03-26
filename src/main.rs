@@ -29,12 +29,18 @@ struct Mobility {
 #[derive(Component)]
 struct SolidCollider;
 
+// Marker component to query the world camera independently from the UI camera
+// https://github.com/bevyengine/bevy/issues/1854
+#[derive(Component)]
+struct WorldCamera;
+
 #[derive(Clone, Hash, Debug, PartialEq, Eq, SystemLabel)]
 enum PhysicsSystem {
     Gravity,
     Input,  // TODO move out of physics
     Velocity,
     Collision,
+    Camera,
 }
 
 
@@ -83,6 +89,7 @@ fn player_solid_collision_system(
     collider_query: Query<(&Transform, &SolidCollider), Without<Player>>,
 ) {
     let (mut player_vel, mut player_tran, player, mut jump) = player_query.single_mut();
+    jump.on_ground = false;
     for (solid_tran, solid_collider) in collider_query.iter() {
         let collision = collide(
             player_tran.translation,
@@ -123,13 +130,27 @@ fn player_solid_collision_system(
     }
 }
 
+fn update_camera_system(
+    mut camera_query: Query<(&mut Transform, &WorldCamera), Without<Player>>,
+    player_query: Query<(&Transform, &Player)>,
+) {
+    let (mut camera_transform, camera) = camera_query.single_mut();
+    let (mut player_transform, player) = player_query.single();
+    camera_transform.translation = player_transform.translation;
+}
+
 fn debug_overlay_system(query: Query<(&Transform, &Velocity, &Player)>) {
     let (transform, velocity, player) = query.single();
     println!("{}: {}", "Player vel", velocity.0);
 }
 
 fn startup_system(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands
+        .spawn()
+        .insert_bundle(OrthographicCameraBundle::new_2d())
+        .insert(WorldCamera)
+    ;
+
     commands.spawn_bundle(UiCameraBundle::default());
     commands
         .spawn()
@@ -153,7 +174,8 @@ fn startup_system(mut commands: Commands) {
             walk_speed: 300.0,
             jump_speed: 500.0,
             on_ground: false,
-        });
+        })
+    ;
 
     commands
         .spawn()
@@ -170,7 +192,8 @@ fn startup_system(mut commands: Commands) {
             },
             ..Default::default()
         })
-        .insert(SolidCollider);
+        .insert(SolidCollider)
+    ;
 
     commands
         .spawn()
@@ -187,8 +210,8 @@ fn startup_system(mut commands: Commands) {
             },
             ..Default::default()
         })
-        .insert(SolidCollider);
-
+        .insert(SolidCollider)
+    ;
 }
 
 fn main() {
@@ -216,6 +239,11 @@ fn main() {
                     player_solid_collision_system
                         .label(PhysicsSystem::Collision)
                         .after(PhysicsSystem::Velocity)
+                )
+                .with_system(
+                    update_camera_system
+                        .label(PhysicsSystem::Camera)
+                        .after(PhysicsSystem::Collision)
                 )
         )
         .run();
