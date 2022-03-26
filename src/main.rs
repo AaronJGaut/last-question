@@ -68,15 +68,14 @@ fn input_system(
     mut query: Query<(&mut Velocity, &Player, &mut Mobility)>,
     mut app_exit_events: EventWriter<AppExit>,
 ) {
-    let (mut velocity, player, mut mobility) = query.single_mut();
+    let (mut velocity, _player, mut mobility) = query.single_mut();
 
     if keyboard_input.just_pressed(KeyCode::A) {
         mobility.walk_direction = Direction::Left;
     }
-    if (
-        keyboard_input.just_released(KeyCode::A)
+    if keyboard_input.just_released(KeyCode::A)
         && matches!(mobility.walk_direction, Direction::Left)
-    ) {
+    {
         mobility.walk_direction = if keyboard_input.pressed(KeyCode::D) {
             Direction::Right
         } else {
@@ -87,10 +86,9 @@ fn input_system(
     if keyboard_input.just_pressed(KeyCode::D) {
         mobility.walk_direction = Direction::Right;
     }
-    if (
-        keyboard_input.just_released(KeyCode::D)
+    if keyboard_input.just_released(KeyCode::D)
         && matches!(mobility.walk_direction, Direction::Right)
-    ) {
+    {
         mobility.walk_direction = if keyboard_input.pressed(KeyCode::A) {
             Direction::Left
         } else {
@@ -125,9 +123,9 @@ fn player_solid_collision_system(
     mut player_query: Query<(&mut Velocity, &mut Transform, &Player, &mut Mobility)>,
     collider_query: Query<(&Transform, &SolidCollider), Without<Player>>,
 ) {
-    let (mut player_vel, mut player_tran, player, mut jump) = player_query.single_mut();
+    let (mut player_vel, mut player_tran, _player, mut jump) = player_query.single_mut();
     jump.on_ground = false;
-    for (solid_tran, solid_collider) in collider_query.iter() {
+    for (solid_tran, _solid_collider) in collider_query.iter() {
         let collision = collide(
             player_tran.translation,
             player_tran.scale.truncate(),
@@ -171,14 +169,9 @@ fn update_camera_system(
     mut camera_query: Query<(&mut Transform, &WorldCamera), Without<Player>>,
     player_query: Query<(&Transform, &Player)>,
 ) {
-    let (mut camera_transform, camera) = camera_query.single_mut();
-    let (mut player_transform, player) = player_query.single();
+    let (mut camera_transform, _camera) = camera_query.single_mut();
+    let (player_transform, _player) = player_query.single();
     camera_transform.translation = player_transform.translation;
-}
-
-fn debug_overlay_system(query: Query<(&Transform, &Velocity, &Player)>) {
-    let (transform, velocity, player) = query.single();
-    println!("{}: {}", "Player vel", velocity.0);
 }
 
 fn startup_system(mut commands: Commands) {
