@@ -5,7 +5,8 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-const TIME_STEP: f32 = 1.0 / 60.0;
+const INPUT_TIME_STEP: f32 = 1.0 / 300.0;
+const PHYSICS_TIME_STEP: f32 = 1.0 / 120.0;
 
 #[derive(Component)]
 struct Label(String);
@@ -19,11 +20,18 @@ struct Gravity(f32);
 #[derive(Component)]
 struct Player;
 
+enum Direction {
+    Left,
+    Right,
+    Neutral,
+}
+
 #[derive(Component)]
 struct Mobility {
     on_ground: bool,
     jump_speed: f32,
     walk_speed: f32,
+    walk_direction: Direction,
 }
 
 #[derive(Component)]
@@ -37,7 +45,6 @@ struct WorldCamera;
 #[derive(Clone, Hash, Debug, PartialEq, Eq, SystemLabel)]
 enum PhysicsSystem {
     Gravity,
-    Input,  // TODO move out of physics
     Velocity,
     Collision,
     Camera,
@@ -46,13 +53,13 @@ enum PhysicsSystem {
 
 fn physics_system(mut query: Query<(&mut Transform, &Velocity)>) {
     for (mut transform, velocity) in query.iter_mut() {
-        transform.translation += velocity.0 * TIME_STEP;
+        transform.translation += velocity.0 * PHYSICS_TIME_STEP;
     }
 }
 
 fn gravity_system(mut query: Query<(&mut Velocity, &Gravity)>) {
     for (mut velocity, gravity) in query.iter_mut() {
-        velocity.0.y -= gravity.0 * TIME_STEP;
+        velocity.0.y -= gravity.0 * PHYSICS_TIME_STEP;
     }
 }
 
@@ -63,19 +70,49 @@ fn input_system(
 ) {
     let (mut velocity, player, mut mobility) = query.single_mut();
 
-    let mut x = 0.0;
-    if keyboard_input.pressed(KeyCode::A) {
-        x -= 1.0;
+    if keyboard_input.just_pressed(KeyCode::A) {
+        mobility.walk_direction = Direction::Left;
     }
-    if keyboard_input.pressed(KeyCode::D) {
-        x += 1.0;
+    if (
+        keyboard_input.just_released(KeyCode::A)
+        && matches!(mobility.walk_direction, Direction::Left)
+    ) {
+        mobility.walk_direction = if keyboard_input.pressed(KeyCode::D) {
+            Direction::Right
+        } else {
+            Direction::Neutral
+        };
     }
-    velocity.0.x = mobility.walk_speed * x;
 
-    if keyboard_input.pressed(KeyCode::Space) {
+    if keyboard_input.just_pressed(KeyCode::D) {
+        mobility.walk_direction = Direction::Right;
+    }
+    if (
+        keyboard_input.just_released(KeyCode::D)
+        && matches!(mobility.walk_direction, Direction::Right)
+    ) {
+        mobility.walk_direction = if keyboard_input.pressed(KeyCode::A) {
+            Direction::Left
+        } else {
+            Direction::Neutral
+        };
+    }
+
+    velocity.0.x = mobility.walk_speed * match mobility.walk_direction {
+        Direction::Left => -1.0,
+        Direction::Right => 1.0,
+        Direction::Neutral => 0.0,
+    };
+
+    if keyboard_input.just_pressed(KeyCode::Space) {
         if mobility.on_ground {
             mobility.on_ground = false;
             velocity.0.y = mobility.jump_speed;
+        }
+    }
+    if keyboard_input.just_released(KeyCode::Space) {
+        if velocity.0.y > 0.0 {
+            velocity.0.y = 0.0;
         }
     }
 
@@ -174,6 +211,7 @@ fn startup_system(mut commands: Commands) {
             walk_speed: 300.0,
             jump_speed: 500.0,
             on_ground: false,
+            walk_direction: Direction::Neutral,
         })
     ;
 
@@ -220,20 +258,20 @@ fn main() {
         .add_startup_system(startup_system)
         .add_system_set(
             SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
+                .with_run_criteria(FixedTimestep::step(INPUT_TIME_STEP as f64))
+                .with_system(input_system)
+        )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(PHYSICS_TIME_STEP as f64))
                 .with_system(
                     gravity_system
                         .label(PhysicsSystem::Gravity)
                 )
                 .with_system(
-                    input_system
-                        .label(PhysicsSystem::Input)
-                        .after(PhysicsSystem::Gravity)
-                )
-                .with_system(
                     physics_system
                         .label(PhysicsSystem::Velocity)
-                        .after(PhysicsSystem::Input)
+                        .after(PhysicsSystem::Gravity)
                 )
                 .with_system(
                     player_solid_collision_system
