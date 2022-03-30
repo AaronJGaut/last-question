@@ -1,7 +1,9 @@
 run-dev:
 	cargo run --features bevy/dynamic
-.PHONY: run
+.PHONY: run-dev
 
-build-release:
+build-native:
 	cargo build --release
-.PHONY: prod
+.PHONY: build-native
+
+#build-web:
