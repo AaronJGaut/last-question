@@ -3,10 +3,14 @@ use bevy::{
     core::FixedTimestep,
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
+    window::WindowMode
 };
+
+use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera};
 
 const INPUT_TIME_STEP: f32 = 1.0 / 300.0;
 const PHYSICS_TIME_STEP: f32 = 1.0 / 120.0;
+const GRAVITY: f32 = 30.;
 
 #[derive(Component)]
 struct Label(String);
@@ -37,11 +41,6 @@ struct Mobility {
 #[derive(Component)]
 struct SolidCollider;
 
-// Marker component to query the world camera independently from the UI camera
-// https://github.com/bevyengine/bevy/issues/1854
-#[derive(Component)]
-struct WorldCamera;
-
 #[derive(Clone, Hash, Debug, PartialEq, Eq, SystemLabel)]
 enum PhysicsSystem {
     Gravity,
@@ -64,10 +63,10 @@ fn gravity_system(mut query: Query<(&mut Velocity, &Gravity)>) {
 
 fn input_system(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<(&mut Velocity, &Player, &mut Mobility)>,
+    mut query: Query<(&mut Velocity, &mut Mobility), With<Player>>,
     mut app_exit_events: EventWriter<AppExit>,
 ) {
-    let (mut velocity, _player, mut mobility) = query.single_mut();
+    let (mut velocity, mut mobility) = query.single_mut();
 
     if keyboard_input.just_pressed(KeyCode::A) {
         mobility.walk_direction = Direction::Left;
@@ -120,12 +119,12 @@ fn input_system(
 }
 
 fn player_solid_collision_system(
-    mut player_query: Query<(&mut Velocity, &mut Transform, &Player, &mut Mobility)>,
-    collider_query: Query<(&Transform, &SolidCollider), Without<Player>>,
+    mut player_query: Query<(&mut Velocity, &mut Transform, &mut Mobility), With<Player>>,
+    collider_query: Query<&Transform, (With<SolidCollider>, Without<Player>)>,
 ) {
-    let (mut player_vel, mut player_tran, _player, mut jump) = player_query.single_mut();
+    let (mut player_vel, mut player_tran, mut jump) = player_query.single_mut();
     jump.on_ground = false;
-    for (solid_tran, _solid_collider) in collider_query.iter() {
+    for solid_tran in collider_query.iter() {
         let collision = collide(
             player_tran.translation,
             player_tran.scale.truncate(),
@@ -160,6 +159,7 @@ fn player_solid_collision_system(
                     }
                     player_tran.translation.y = solid_tran.translation.y - mean_scale.y;
                 }
+                Collision::Inside => {}
             }
         }
     }
@@ -167,41 +167,45 @@ fn player_solid_collision_system(
 
 fn update_camera_system(
     mut camera_query: Query<(&mut Transform, &WorldCamera), Without<Player>>,
-    player_query: Query<(&Transform, &Player)>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
     let (mut camera_transform, _camera) = camera_query.single_mut();
-    let (player_transform, _player) = player_query.single();
+    let player_transform = player_query.single();
     camera_transform.translation = player_transform.translation;
 }
 
 fn startup_system(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert_bundle(OrthographicCameraBundle::new_2d())
-        .insert(WorldCamera);
+    //let mut bundle = OrthographicCameraBundle::new_2d();
+    //bundle.orthographic_projection.scaling_mode = ScalingMode::FixedVertical;
+    //bundle.orthographic_projection.scale = 8.;
+    //commands
+    //    .spawn()
+    //    .insert_bundle(bundle)
+    //    .insert(WorldCamera);
 
-    commands.spawn_bundle(UiCameraBundle::default());
+    //commands.spawn_bundle(UiCameraBundle::default());
     commands
         .spawn()
         .insert(Label("Player".to_string()))
         .insert_bundle(SpriteBundle {
             transform: Transform {
-                translation: Vec3::new(0.0, 0.0, 0.0),
-                scale: Vec3::new(20.0, 40.0, 1.0),
-                ..Default::default()
+                translation: Vec3::new(0., 1., 0.),
+                scale: Vec3::new(1., 1.8, 1.),
+                ..default()
             },
             sprite: Sprite {
-                color: Color::rgb(0.0, 1.0, 0.0),
-                ..Default::default()
+                color: Color::rgb(0., 1., 0.),
+                ..default()
             },
-            ..Default::default()
+            ..default()
         })
         .insert(Velocity(Vec3::ZERO))
         .insert(Player)
-        .insert(Gravity(1000.0))
+        .insert(Gravity(GRAVITY))
         .insert(Mobility {
-            walk_speed: 300.0,
-            jump_speed: 500.0,
+            walk_speed: 15.,
+            // Last factor is peak jump height under normal gravity
+            jump_speed: (2. * GRAVITY * 5.8).sqrt(),
             on_ground: false,
             walk_direction: Direction::Neutral,
         });
@@ -211,15 +215,32 @@ fn startup_system(mut commands: Commands) {
         .insert(Label("Floor".to_string()))
         .insert_bundle(SpriteBundle {
             transform: Transform {
-                translation: Vec3::new(0.0, -200.0, 0.0),
-                scale: Vec3::new(500.0, 20.0, 1.0),
-                ..Default::default()
+                translation: Vec3::new(0., 0., 0.),
+                scale: Vec3::new(20., 1., 1.),
+                ..default()
             },
             sprite: Sprite {
-                color: Color::rgb(0.0, 1.0, 1.0),
-                ..Default::default()
+                color: Color::rgb(0., 1., 1.),
+                ..default()
             },
-            ..Default::default()
+            ..default()
+        })
+        .insert(SolidCollider);
+
+    commands
+        .spawn()
+        .insert(Label("Wall".to_string()))
+        .insert_bundle(SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(10., 10., 0.),
+                scale: Vec3::new(1., 20., 1.),
+                ..default()
+            },
+            sprite: Sprite {
+                color: Color::rgb(0., 1., 1.),
+                ..default()
+            },
+            ..default()
         })
         .insert(SolidCollider);
 
@@ -228,22 +249,28 @@ fn startup_system(mut commands: Commands) {
         .insert(Label("Platform".to_string()))
         .insert_bundle(SpriteBundle {
             transform: Transform {
-                translation: Vec3::new(250.0, 0.0, 0.0),
-                scale: Vec3::new(20.0, 400.0, 1.0),
-                ..Default::default()
+                translation: Vec3::new(5., 5., 0.),
+                scale: Vec3::new(3., 1., 1.),
+                ..default()
             },
             sprite: Sprite {
-                color: Color::rgb(0.0, 1.0, 1.0),
-                ..Default::default()
+                color: Color::rgb(0., 1., 1.),
+                ..default()
             },
-            ..Default::default()
+            ..default()
         })
         .insert(SolidCollider);
 }
 
 fn main() {
     App::new()
+        .insert_resource(WindowDescriptor {
+            resizable: false,
+            mode: WindowMode::BorderlessFullscreen,
+            ..default()
+        })
         .add_plugins(DefaultPlugins)
+        .add_plugin(PixelPerfectPlugin)
         .add_startup_system(startup_system)
         .add_system_set(
             SystemSet::new()
