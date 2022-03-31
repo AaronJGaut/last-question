@@ -204,11 +204,15 @@ fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
             walk_direction: Direction::Neutral,
         });
 
-    for x in -5..5 {
-      commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
-          pos: IVec2::new(x, 0),
-          appearance: tile::TileAppearance::Texture(asset_server.load("tile.png")),
-      }));
+    for (x, y) in [
+        (-5, 0), (-4, 0), (-3, 0), (-2, 0), (-1, 0), (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0),
+        (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (-5, 1), (-5, 2), (-5, 3), (-5, 4), (-5, 5),
+        (-5, 6), (2, 5), (3, 5),
+    ] {
+        commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
+            pos: IVec2::new(x, y),
+            appearance: tile::TileAppearance::Texture(asset_server.load("tile.png")),
+        }));
     }
 }
 
