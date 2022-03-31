@@ -7,6 +7,7 @@ use bevy::{
 };
 
 use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera};
+use last_question::tile;
 
 const INPUT_TIME_STEP: f32 = 1.0 / 300.0;
 const PHYSICS_TIME_STEP: f32 = 1.0 / 120.0;
@@ -38,9 +39,6 @@ struct Mobility {
     walk_direction: Direction,
 }
 
-#[derive(Component)]
-struct SolidCollider;
-
 #[derive(Clone, Hash, Debug, PartialEq, Eq, SystemLabel)]
 enum PhysicsSystem {
     Gravity,
@@ -63,10 +61,15 @@ fn gravity_system(mut query: Query<(&mut Velocity, &Gravity)>) {
 
 fn input_system(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<(&mut Velocity, &mut Mobility), With<Player>>,
+    mut query: Query<(&mut Transform, &mut Velocity, &mut Mobility), With<Player>>,
     mut app_exit_events: EventWriter<AppExit>,
 ) {
-    let (mut velocity, mut mobility) = query.single_mut();
+    let (mut transform, mut velocity, mut mobility) = query.single_mut();
+
+    if keyboard_input.just_pressed(KeyCode::R) {
+        transform.translation = Vec3::new(0., 1., 0.);
+        velocity.0 = Vec3::new(0., 0., 0.);
+    }
 
     if keyboard_input.just_pressed(KeyCode::A) {
         mobility.walk_direction = Direction::Left;
@@ -120,7 +123,7 @@ fn input_system(
 
 fn player_solid_collision_system(
     mut player_query: Query<(&mut Velocity, &mut Transform, &mut Mobility), With<Player>>,
-    collider_query: Query<&Transform, (With<SolidCollider>, Without<Player>)>,
+    collider_query: Query<&Transform, (With<tile::SolidCollider>, Without<Player>)>,
 ) {
     let (mut player_vel, mut player_tran, mut jump) = player_query.single_mut();
     jump.on_ground = false;
@@ -174,16 +177,7 @@ fn update_camera_system(
     camera_transform.translation = player_transform.translation;
 }
 
-fn startup_system(mut commands: Commands) {
-    //let mut bundle = OrthographicCameraBundle::new_2d();
-    //bundle.orthographic_projection.scaling_mode = ScalingMode::FixedVertical;
-    //bundle.orthographic_projection.scale = 8.;
-    //commands
-    //    .spawn()
-    //    .insert_bundle(bundle)
-    //    .insert(WorldCamera);
-
-    //commands.spawn_bundle(UiCameraBundle::default());
+fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn()
         .insert(Label("Player".to_string()))
@@ -210,56 +204,12 @@ fn startup_system(mut commands: Commands) {
             walk_direction: Direction::Neutral,
         });
 
-    commands
-        .spawn()
-        .insert(Label("Floor".to_string()))
-        .insert_bundle(SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(0., 0., 0.),
-                scale: Vec3::new(20., 1., 1.),
-                ..default()
-            },
-            sprite: Sprite {
-                color: Color::rgb(0., 1., 1.),
-                ..default()
-            },
-            ..default()
-        })
-        .insert(SolidCollider);
-
-    commands
-        .spawn()
-        .insert(Label("Wall".to_string()))
-        .insert_bundle(SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(10., 10., 0.),
-                scale: Vec3::new(1., 20., 1.),
-                ..default()
-            },
-            sprite: Sprite {
-                color: Color::rgb(0., 1., 1.),
-                ..default()
-            },
-            ..default()
-        })
-        .insert(SolidCollider);
-
-    commands
-        .spawn()
-        .insert(Label("Platform".to_string()))
-        .insert_bundle(SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(5., 5., 0.),
-                scale: Vec3::new(3., 1., 1.),
-                ..default()
-            },
-            sprite: Sprite {
-                color: Color::rgb(0., 1., 1.),
-                ..default()
-            },
-            ..default()
-        })
-        .insert(SolidCollider);
+    for x in -5..5 {
+      commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
+          pos: IVec2::new(x, 0),
+          appearance: tile::TileAppearance::Texture(asset_server.load("tile.png")),
+      }));
+    }
 }
 
 fn main() {
