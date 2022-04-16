@@ -184,7 +184,7 @@ fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert_bundle(SpriteBundle {
             transform: Transform {
                 translation: Vec3::new(0., 1., 0.),
-                scale: Vec3::new(1., 1.8, 1.),
+                scale: Vec3::new(1., 2., 1.),
                 ..default()
             },
             sprite: Sprite {
@@ -204,14 +204,16 @@ fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
             walk_direction: Direction::Neutral,
         });
 
+    let appearance = tile::TileAppearance::Texture(asset_server.load("tile.png"));
+    //let appearance = tile::TileAppearance::Color(Color::rgb(0., 1., 1.));
     for (x, y) in [
         (-5, 0), (-4, 0), (-3, 0), (-2, 0), (-1, 0), (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0),
         (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (-5, 1), (-5, 2), (-5, 3), (-5, 4), (-5, 5),
-        (-5, 6), (2, 5), (3, 5),
+        (-5, 6), (2, 5), (3, 5), (-4, 3), (-3, 3),
     ] {
         commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
             pos: IVec2::new(x, y),
-            appearance: tile::TileAppearance::Texture(asset_server.load("tile.png")),
+            appearance: appearance.clone(),
         }));
     }
 }

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+#[derive(Clone)]
 pub enum TileAppearance {
     Color(Color),
     Texture(Handle<Image>),
