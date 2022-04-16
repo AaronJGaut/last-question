@@ -3,6 +3,7 @@ use bevy::{
     core::FixedTimestep,
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
+    sprite::Anchor,
     window::WindowMode
 };
 
@@ -121,7 +122,7 @@ fn input_system(
     }
 }
 
-fn player_solid_collision_system(
+fn player_tile_collision_system(
     mut player_query: Query<(&mut Velocity, &mut Transform, &mut Mobility), With<Player>>,
     collider_query: Query<&Transform, (With<tile::SolidCollider>, Without<Player>)>,
 ) {
@@ -129,40 +130,52 @@ fn player_solid_collision_system(
     jump.on_ground = false;
     for solid_tran in collider_query.iter() {
         let collision = collide(
-            player_tran.translation,
+            player_tran.translation + 0.5 * player_tran.scale,
             player_tran.scale.truncate(),
-            solid_tran.translation,
+            solid_tran.translation + 0.5 * solid_tran.scale,
             solid_tran.scale.truncate(),
         );
         if let Some(collision) = collision {
-            let mean_scale = 0.5 * (player_tran.scale + solid_tran.scale);
             match collision {
                 Collision::Left => {
                     if player_vel.0.x > 0.0 {
                         player_vel.0.x = 0.0;
                     }
-                    player_tran.translation.x = solid_tran.translation.x - mean_scale.x;
+                    player_tran.translation.x = solid_tran.translation.x - player_tran.scale.x;
                 }
                 Collision::Right => {
                     if player_vel.0.x < 0.0 {
                         player_vel.0.x = 0.0;
                     }
-                    player_tran.translation.x = solid_tran.translation.x + mean_scale.x;
+                    player_tran.translation.x = solid_tran.translation.x + solid_tran.scale.x;
                 }
+                _ => {}
+            }
+        }
+    }
+    for solid_tran in collider_query.iter() {
+        let collision = collide(
+            player_tran.translation + 0.5 * player_tran.scale,
+            player_tran.scale.truncate(),
+            solid_tran.translation + 0.5 * solid_tran.scale,
+            solid_tran.scale.truncate(),
+        );
+        if let Some(collision) = collision {
+            match collision {
                 Collision::Top => {
                     if player_vel.0.y < 0.0 {
                         player_vel.0.y = 0.0;
                     }
-                    player_tran.translation.y = solid_tran.translation.y + mean_scale.y;
+                    player_tran.translation.y = solid_tran.translation.y + solid_tran.scale.y;
                     jump.on_ground = true;
                 }
                 Collision::Bottom => {
                     if player_vel.0.y > 0.0 {
                         player_vel.0.y = 0.0;
                     }
-                    player_tran.translation.y = solid_tran.translation.y - mean_scale.y;
+                    player_tran.translation.y = solid_tran.translation.y - player_tran.scale.y;
                 }
-                Collision::Inside => {}
+                _ => {}
             }
         }
     }
@@ -189,6 +202,7 @@ fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             sprite: Sprite {
                 color: Color::rgb(0., 1., 0.),
+                anchor: Anchor::BottomLeft,
                 ..default()
             },
             ..default()
@@ -197,7 +211,7 @@ fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(Player)
         .insert(Gravity(GRAVITY))
         .insert(Mobility {
-            walk_speed: 15.,
+            walk_speed: 10.,
             // Last factor is peak jump height under normal gravity
             jump_speed: (2. * GRAVITY * 5.8).sqrt(),
             on_ground: false,
@@ -243,7 +257,7 @@ fn main() {
                         .after(PhysicsSystem::Gravity),
                 )
                 .with_system(
-                    player_solid_collision_system
+                    player_tile_collision_system
                         .label(PhysicsSystem::Collision)
                         .after(PhysicsSystem::Velocity),
                 )

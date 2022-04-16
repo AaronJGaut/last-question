@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 
 #[derive(Clone)]
 pub enum TileAppearance {
@@ -32,6 +33,7 @@ impl SolidTile {
                 },
                 sprite: Sprite {
                     custom_size: Some(Vec2::new(1., 1.)),
+                    anchor: Anchor::BottomLeft,
                     ..default()
                 },
                 ..default()
