@@ -1,19 +1,21 @@
-build build-dev:
-	cargo build --features bevy/dynamic
-.PHONY: build build-dev
+ifdef RELEASE
+	BUILD_FLAGS = --release
+else
+	BUILD_FLAGS = --features bevy/dynamic
+endif
 
-run run-dev:
-	cargo run --features bevy/dynamic
-.PHONY: run run-dev
+build:
+	cargo build ${BUILD_FLAGS}
+.PHONY: build
 
-build-release build-release-native:
-	cargo build --release
-.PHONY: build-release build-release-native
+run:
+	cargo run ${BUILD_FLAGS}
+.PHONY: run
 
-build-release-web:
+build-web:
 	cargo build --target wasm32-unknown-unknown --no-default-features
 	wasm-bindgen --out-dir . --target web target/wasm32-unknown-unknown/release/last-question.wasm
-.PHONY: build-release-web
+.PHONY: build-web
 
 push:
 	git remote | xargs -n1 git push
