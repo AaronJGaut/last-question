@@ -13,7 +13,7 @@ use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera};
 use last_question::tile;
 
 const INPUT_TIME_STEP: f32 = 1.0 / 300.0;
-const PHYSICS_TIME_STEP: f32 = 1.0 / 120.0;
+const PHYSICS_TIME_STEP: f32 = 1.0 / 240.0;
 const GRAVITY: f32 = 30.;
 
 #[derive(Component)]
@@ -130,6 +130,8 @@ fn player_tile_collision_system(
 ) {
     // First pass: detect internal segments to be ignored
     let mut segment_counts: HashMap<[i32; 4], i32> = HashMap::new();
+    // Reserve space for 1000 tiles
+    segment_counts.reserve(8000);
     // Currently assuming only 1x1 tiles
     for solid_tran in collider_query.iter() {
         let base = solid_tran.translation.round().as_ivec3();
