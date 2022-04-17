@@ -7,6 +7,8 @@ use bevy::{
     window::WindowMode
 };
 
+use std::collections::HashMap;
+
 use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera};
 use last_question::tile;
 
@@ -126,9 +128,30 @@ fn player_tile_collision_system(
     mut player_query: Query<(&mut Velocity, &mut Transform, &mut Mobility), With<Player>>,
     collider_query: Query<&Transform, (With<tile::SolidCollider>, Without<Player>)>,
 ) {
+    // First pass: detect internal segments to be ignored
+    let mut segment_counts: HashMap<[i32; 4], i32> = HashMap::new();
+    // Currently assuming only 1x1 tiles
+    for solid_tran in collider_query.iter() {
+        let base = solid_tran.translation.round().as_ivec3();
+        // Bottom segment
+        *segment_counts.entry([base.x, base.y, base.x + 1, base.y]).or_insert(0) += 1;
+        *segment_counts.entry([base.x + 1, base.y, base.x, base.y]).or_insert(0) += 1;
+        // Right segment
+        *segment_counts.entry([base.x + 1, base.y, base.x + 1, base.y + 1]).or_insert(0) += 1;
+        *segment_counts.entry([base.x + 1, base.y + 1, base.x + 1, base.y]).or_insert(0) += 1;
+        // Top segment
+        *segment_counts.entry([base.x + 1, base.y + 1, base.x, base.y + 1]).or_insert(0) += 1;
+        *segment_counts.entry([base.x, base.y + 1, base.x + 1, base.y + 1]).or_insert(0) += 1;
+        // Left segment
+        *segment_counts.entry([base.x, base.y + 1, base.x, base.y]).or_insert(0) += 1;
+        *segment_counts.entry([base.x, base.y, base.x, base.y + 1]).or_insert(0) += 1;
+    }
     let (mut player_vel, mut player_tran, mut jump) = player_query.single_mut();
     jump.on_ground = false;
+    // Second pass: handle collisions with external segments
     for solid_tran in collider_query.iter() {
+        let base = solid_tran.translation.round().as_ivec3();
+
         let collision = collide(
             player_tran.translation + 0.5 * player_tran.scale,
             player_tran.scale.truncate(),
@@ -138,42 +161,37 @@ fn player_tile_collision_system(
         if let Some(collision) = collision {
             match collision {
                 Collision::Left => {
-                    if player_vel.0.x > 0.0 {
-                        player_vel.0.x = 0.0;
+                    if *segment_counts.get(&[base.x, base.y + 1, base.x, base.y]).unwrap() == 1 {
+                        if player_vel.0.x > 0.0 {
+                            player_vel.0.x = 0.0;
+                        }
+                        player_tran.translation.x = solid_tran.translation.x - player_tran.scale.x;
                     }
-                    player_tran.translation.x = solid_tran.translation.x - player_tran.scale.x;
                 }
                 Collision::Right => {
-                    if player_vel.0.x < 0.0 {
-                        player_vel.0.x = 0.0;
+                    if *segment_counts.get(&[base.x + 1, base.y, base.x + 1, base.y + 1]).unwrap() == 1 {
+                        if player_vel.0.x < 0.0 {
+                            player_vel.0.x = 0.0;
+                        }
+                        player_tran.translation.x = solid_tran.translation.x + solid_tran.scale.x;
                     }
-                    player_tran.translation.x = solid_tran.translation.x + solid_tran.scale.x;
                 }
-                _ => {}
-            }
-        }
-    }
-    for solid_tran in collider_query.iter() {
-        let collision = collide(
-            player_tran.translation + 0.5 * player_tran.scale,
-            player_tran.scale.truncate(),
-            solid_tran.translation + 0.5 * solid_tran.scale,
-            solid_tran.scale.truncate(),
-        );
-        if let Some(collision) = collision {
-            match collision {
                 Collision::Top => {
-                    if player_vel.0.y < 0.0 {
-                        player_vel.0.y = 0.0;
+                    if *segment_counts.get(&[base.x + 1, base.y + 1, base.x, base.y + 1]).unwrap() == 1 {
+                        if player_vel.0.y < 0.0 {
+                            player_vel.0.y = 0.0;
+                        }
+                        player_tran.translation.y = solid_tran.translation.y + solid_tran.scale.y;
+                        jump.on_ground = true;
                     }
-                    player_tran.translation.y = solid_tran.translation.y + solid_tran.scale.y;
-                    jump.on_ground = true;
                 }
                 Collision::Bottom => {
-                    if player_vel.0.y > 0.0 {
-                        player_vel.0.y = 0.0;
+                    if *segment_counts.get(&[base.x, base.y, base.x + 1, base.y]).unwrap() == 1 {
+                        if player_vel.0.y > 0.0 {
+                            player_vel.0.y = 0.0;
+                        }
+                        player_tran.translation.y = solid_tran.translation.y - player_tran.scale.y;
                     }
-                    player_tran.translation.y = solid_tran.translation.y - player_tran.scale.y;
                 }
                 _ => {}
             }
