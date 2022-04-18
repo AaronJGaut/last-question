@@ -14,6 +14,7 @@ use bevy::{
     },
     prelude::*,
     render::{
+        mesh::VertexAttributeValues,
         camera::{ActiveCamera, CameraTypePlugin, RenderTarget, Camera3d, ScalingMode},
         render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext, SlotValue},
         render_phase::RenderPhase,
@@ -163,7 +164,15 @@ fn setup(
             marker: WorldCamera,
         });
 
-    let quad_handle = meshes.add(Mesh::from(shape::Quad::new(Vec2::new(2. * 16. / 9., 2.))));
+    let scale = Vec3::new(2. * 16. / 9., 2., 0.);
+    let mut mesh = Mesh::from(shape::Quad::new(2. * scale.truncate()));
+    if let Some(VertexAttributeValues::Float32x2(uvs)) = mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0) {
+        for uv in uvs {
+            uv[0] *= 2.0;
+            uv[1] *= 2.0;
+        }
+    }
+    let quad_handle = meshes.add(mesh);
 
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(image_handle),
@@ -174,6 +183,10 @@ fn setup(
         .spawn_bundle(PbrBundle {
             mesh: quad_handle,
             material: material_handle,
+            transform: Transform {
+                translation: Vec3::new(scale.x / 2., -scale.y / 2., 0.),
+                ..default()
+            },
             ..default()
         });
 
