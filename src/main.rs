@@ -119,8 +119,10 @@ fn input_system(
         }
     }
 
-    if keyboard_input.pressed(KeyCode::Escape) {
-        app_exit_events.send(AppExit);
+    if !cfg!(target_arch="wasm32") {
+        if keyboard_input.pressed(KeyCode::Escape) {
+            app_exit_events.send(AppExit);
+        }
     }
 }
 
@@ -256,7 +258,12 @@ fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
             resizable: false,
-            mode: WindowMode::BorderlessFullscreen,
+            mode: if cfg!(target_arch="wasm32") {
+                WindowMode::Windowed
+            }
+            else {
+                WindowMode::BorderlessFullscreen
+            },
             ..default()
         })
         .add_plugins(DefaultPlugins)

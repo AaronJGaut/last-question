@@ -1,4 +1,5 @@
 // This provides a plugin to achieve pixel-perfect rendering
+//
 // 1. First the 2d renderer renders all sprites to a texture with the
 // desired pixel dimensions.
 // 2. Then the 3d renderer renders a quad covering the screen with the texture
@@ -124,7 +125,12 @@ fn setup(
             label: None,
             size,
             dimension: TextureDimension::D2,
-            format: TextureFormat::Bgra8UnormSrgb,
+            format: if cfg!(target_arch="wasm32") {
+                TextureFormat::Rgba8UnormSrgb
+            }
+            else {
+                TextureFormat::Bgra8UnormSrgb
+            },
             mip_level_count: 1,
             sample_count: 1,
             usage: TextureUsages::TEXTURE_BINDING
