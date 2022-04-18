@@ -7,7 +7,7 @@ endif
 RUSTFLAGS += --remap-path-prefix=$(shell realpath src)=src
 SERVE_DOMAIN ?= localhost
 
-BINDGEN_PATH := target/bindgen
+BINDGEN_PATH := ./target/bindgen
 
 build:
 	cargo build ${BUILD_FLAGS}
@@ -20,7 +20,6 @@ run:
 build-web: | ${BINDGEN_PATH}/index.html ${BINDGEN_PATH}/assets
 	cargo build --target wasm32-unknown-unknown --no-default-features --release
 	wasm-bindgen --out-dir ${BINDGEN_PATH} --target web target/wasm32-unknown-unknown/release/last-question.wasm
-	cp -r assets/* ${BINDGEN_PATH}
 .PHONY: build-web
 
 ${BINDGEN_PATH}/assets: $(shell find assets) | ${BINDGEN_PATH}
