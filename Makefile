@@ -40,3 +40,7 @@ push:
 	git remote | xargs -n1 git push
 	git remote | xargs -n1 git push --tags
 .PHONY: push
+
+format fmt:
+	cargo fmt
+.PHONY: format fmt
