@@ -4,12 +4,12 @@ use bevy::{
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
     sprite::Anchor,
-    window::WindowMode
+    window::WindowMode,
 };
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
-use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera};
+use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera, PIXELS_PER_TILE, WIDTH_PIXELS, HEIGHT_PIXELS};
 use last_question::tile;
 
 const INPUT_TIME_STEP: f32 = 1.0 / 300.0;
@@ -62,7 +62,7 @@ fn gravity_system(mut query: Query<(&mut Velocity, &Gravity)>) {
     }
 }
 
-fn input_system(
+fn keyboard_input_system(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<(&mut Transform, &mut Velocity, &mut Mobility), With<Player>>,
     mut app_exit_events: EventWriter<AppExit>,
@@ -126,33 +126,115 @@ fn input_system(
     }
 }
 
+fn mouse_input_system(
+    mouse_button_input: Res<Input<MouseButton>>,
+    mut tile_edit: ResMut<TileEdit>,
+) {
+    if mouse_button_input.just_released(MouseButton::Left) {
+        if let TileEditTool::Paintbrush = tile_edit.tool {
+            tile_edit.deactivate();
+        }
+    }
+
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        if !tile_edit.active {
+            tile_edit.activate_paintbrush();
+        }
+    }
+
+    if mouse_button_input.just_released(MouseButton::Right) {
+        if let TileEditTool::Eraser = tile_edit.tool {
+            tile_edit.deactivate();
+        }
+    }
+
+    if mouse_button_input.just_pressed(MouseButton::Right) {
+        if !tile_edit.active {
+            tile_edit.activate_eraser();
+        }
+    }
+}
+
+fn update_screen_to_world_system(
+    mut screen_to_world: ResMut<ScreenToWorld>,
+    windows: Res<Windows>,
+    camera_query: Query<&Transform, With<WorldCamera>>,
+) {
+    let window = windows.primary();
+    screen_to_world.set_screen_dimensions(Vec2::new(window.width(), window.height()));
+    let transform = camera_query.single();
+    screen_to_world.set_world_offset(transform.translation.truncate());
+}
+
+fn tile_edit_system(
+    mut commands: Commands,
+    screen_to_world: Res<ScreenToWorld>,
+    window: Res<Windows>,
+    mut tile_edit: ResMut<TileEdit>,
+    tile_query: Query<(Entity, &Transform), With<tile::Tile>>,
+    asset_server: Res<AssetServer>,
+) {
+    if !tile_edit.active {
+        return;
+    }
+
+    if let Some(cursor) = window.primary().cursor_position() {
+        let cursor = (screen_to_world.transform(cursor) - 0.5).round().as_ivec2();
+        if !tile_edit.interacted.contains(&cursor.to_array()) {
+            match tile_edit.tool {
+                TileEditTool::Paintbrush => {
+                    tile_edit.interacted.insert(cursor.to_array()); 
+                    let mut exists = false;
+                    for (_, tile_transform) in tile_query.iter() {
+                        if tile_transform.translation.truncate().round().as_ivec2() == cursor {
+                            exists = true;
+                        }
+                    }
+                    if !exists {
+                        commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
+                            pos: cursor,
+                            appearance: tile::TileAppearance::Texture(asset_server.load("tile.png")),
+                        }));
+                    }
+                }
+                TileEditTool::Eraser => {
+                    tile_edit.interacted.insert(cursor.to_array()); 
+                    for (entity, tile_transform) in tile_query.iter() {
+                        if tile_transform.translation.truncate().round().as_ivec2() == cursor {
+                            commands.entity(entity).despawn_recursive();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn player_tile_collision_system(
     mut player_query: Query<(&mut Velocity, &mut Transform, &mut Mobility), With<Player>>,
     collider_query: Query<&Transform, (With<tile::SolidCollider>, Without<Player>)>,
 ) {
     // First pass: detect internal segments to be ignored
-    let mut segment_counts: HashMap<[i32; 4], i32> = HashMap::new();
+    // Segments enclosing a space follow a counter-clockwise convention
+    let mut segments = HashSet::<[i32; 4]>::new();
     // Reserve space for 1000 tiles
-    segment_counts.reserve(8000);
+    segments.reserve(4000);
     // Currently assuming only 1x1 tiles
     for solid_tran in collider_query.iter() {
         let base = solid_tran.translation.round().as_ivec3();
         // Bottom segment
-        *segment_counts.entry([base.x, base.y, base.x + 1, base.y]).or_insert(0) += 1;
-        *segment_counts.entry([base.x + 1, base.y, base.x, base.y]).or_insert(0) += 1;
+        segments.insert([base.x, base.y, base.x + 1, base.y]);
         // Right segment
-        *segment_counts.entry([base.x + 1, base.y, base.x + 1, base.y + 1]).or_insert(0) += 1;
-        *segment_counts.entry([base.x + 1, base.y + 1, base.x + 1, base.y]).or_insert(0) += 1;
+        segments.insert([base.x + 1, base.y, base.x + 1, base.y + 1]);
         // Top segment
-        *segment_counts.entry([base.x + 1, base.y + 1, base.x, base.y + 1]).or_insert(0) += 1;
-        *segment_counts.entry([base.x, base.y + 1, base.x + 1, base.y + 1]).or_insert(0) += 1;
+        segments.insert([base.x + 1, base.y + 1, base.x, base.y + 1]);
         // Left segment
-        *segment_counts.entry([base.x, base.y + 1, base.x, base.y]).or_insert(0) += 1;
-        *segment_counts.entry([base.x, base.y, base.x, base.y + 1]).or_insert(0) += 1;
+        segments.insert([base.x, base.y + 1, base.x, base.y]);
     }
     let (mut player_vel, mut player_tran, mut jump) = player_query.single_mut();
     jump.on_ground = false;
     // Second pass: handle collisions with external segments
+    // A segment is internal if there is another segment which is its inversion
     for solid_tran in collider_query.iter() {
         let base = solid_tran.translation.round().as_ivec3();
 
@@ -165,7 +247,7 @@ fn player_tile_collision_system(
         if let Some(collision) = collision {
             match collision {
                 Collision::Left => {
-                    if *segment_counts.get(&[base.x, base.y + 1, base.x, base.y]).unwrap() == 1 {
+                    if !segments.contains(&[base.x, base.y, base.x, base.y + 1]) {
                         if player_vel.0.x > 0.0 {
                             player_vel.0.x = 0.0;
                         }
@@ -173,7 +255,7 @@ fn player_tile_collision_system(
                     }
                 }
                 Collision::Right => {
-                    if *segment_counts.get(&[base.x + 1, base.y, base.x + 1, base.y + 1]).unwrap() == 1 {
+                    if !segments.contains(&[base.x + 1, base.y + 1, base.x + 1, base.y]) {
                         if player_vel.0.x < 0.0 {
                             player_vel.0.x = 0.0;
                         }
@@ -181,7 +263,7 @@ fn player_tile_collision_system(
                     }
                 }
                 Collision::Top => {
-                    if *segment_counts.get(&[base.x + 1, base.y + 1, base.x, base.y + 1]).unwrap() == 1 {
+                    if !segments.contains(&[base.x, base.y + 1, base.x + 1, base.y + 1]) {
                         if player_vel.0.y < 0.0 {
                             player_vel.0.y = 0.0;
                         }
@@ -190,7 +272,7 @@ fn player_tile_collision_system(
                     }
                 }
                 Collision::Bottom => {
-                    if *segment_counts.get(&[base.x, base.y, base.x + 1, base.y]).unwrap() == 1 {
+                    if !segments.contains(&[base.x + 1, base.y, base.x, base.y]) {
                         if player_vel.0.y > 0.0 {
                             player_vel.0.y = 0.0;
                         }
@@ -212,7 +294,84 @@ fn update_camera_system(
     camera_transform.translation = player_transform.translation;
 }
 
-fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
+enum TileEditTool {
+    Paintbrush,
+    Eraser,
+}
+
+struct TileEdit {
+    interacted: HashSet::<[i32; 2]>,
+    tool: TileEditTool,
+    active: bool,
+}
+
+struct ScreenToWorld {
+    world_offset: Vec2,
+    screen_dimensions: Vec2,
+}
+
+impl ScreenToWorld {
+    pub fn new() -> Self {
+        ScreenToWorld {
+            screen_dimensions: Vec2::ONE,
+            world_offset: Vec2::ZERO,
+        }
+    }
+
+    // Update the width and height of the screen in logical pixels
+    pub fn set_screen_dimensions(&mut self, dimensions: Vec2) {
+        self.screen_dimensions = dimensions;
+    }
+
+    // Update the center of screen in world coordinates
+    pub fn set_world_offset(&mut self, offset: Vec2) {
+        self.world_offset = offset;
+    }
+
+    pub fn transform(&self, point: Vec2) -> Vec2 {
+        let dim = &self.screen_dimensions;
+        let cropped_width = dim.y * WIDTH_PIXELS as f32 / HEIGHT_PIXELS as f32;
+        let cropped_x = point.x - (dim.x - cropped_width) / 2.;
+        Vec2::new(
+            ((2. * cropped_x / cropped_width) - 1.) * WIDTH_PIXELS as f32 / (2. * PIXELS_PER_TILE as f32) + self.world_offset.x,
+            ((2. * point.y / dim.y) - 1.) * HEIGHT_PIXELS as f32 / (2. * PIXELS_PER_TILE as f32) + self.world_offset.y,
+        )
+    }
+}
+
+impl TileEdit {
+    fn new() -> Self {
+        TileEdit {
+            interacted: HashSet::new(),
+            tool: TileEditTool::Paintbrush,
+            active: false,
+        }
+    }
+
+    fn deactivate(&mut self) {
+        self.interacted.clear();
+        self.active = false;
+    }
+
+    fn activate_paintbrush(&mut self) {
+        self.active = true;
+        self.tool = TileEditTool::Paintbrush;
+    }
+
+    fn activate_eraser(&mut self) {
+        self.active = true;
+        self.tool = TileEditTool::Eraser;
+    }
+}
+
+fn startup_system(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut screen_to_world: ResMut<ScreenToWorld>,
+    windows: Res<Windows>,
+) {
+    let window = windows.primary();
+    screen_to_world.set_screen_dimensions(Vec2::new(window.width(), window.height()));
     commands
         .spawn()
         .insert(Label("Player".to_string()))
@@ -257,13 +416,17 @@ fn startup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn main() {
     App::new()
+        .insert_resource(TileEdit::new())
+        .insert_resource(ScreenToWorld::new())
         .insert_resource(WindowDescriptor {
+            //resizable: true,
             resizable: false,
             mode: if cfg!(target_arch="wasm32") {
                 WindowMode::Windowed
             }
             else {
                 WindowMode::BorderlessFullscreen
+                //WindowMode::Windowed
             },
             ..default()
         })
@@ -273,7 +436,10 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(INPUT_TIME_STEP as f64))
-                .with_system(input_system),
+                .with_system(keyboard_input_system)
+                .with_system(mouse_input_system)
+                .with_system(update_screen_to_world_system)
+                .with_system(tile_edit_system)
         )
         .add_system_set(
             SystemSet::new()

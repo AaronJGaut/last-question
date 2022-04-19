@@ -12,6 +12,9 @@
   </head>
   <script type="module">
     import init from './last-question.js'
-    init()
+    init().catch(() => {
+      const canvas = document.querySelector('body>canvas');
+      canvas.oncontextmenu = () => false;
+    });
   </script>
 </html>

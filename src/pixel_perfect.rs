@@ -27,6 +27,8 @@ use bevy::{
 };
 
 pub const PIXELS_PER_TILE: u32 = 16;
+pub const WIDTH_PIXELS: u32 = PIXELS_PER_TILE * 2 * 16;
+pub const HEIGHT_PIXELS: u32 = PIXELS_PER_TILE * 2 * 9;
 
 #[derive(Component, Default)]
 pub struct WorldCamera;
@@ -115,8 +117,8 @@ fn setup(
     mut clear_colors: ResMut<RenderTargetClearColors>,
 ) {
     let size = Extent3d {
-        width: 16 * PIXELS_PER_TILE * 2,
-        height: 9 * PIXELS_PER_TILE * 2,
+        width: WIDTH_PIXELS,
+        height: HEIGHT_PIXELS,
         ..default()
     };
 
@@ -164,6 +166,9 @@ fn setup(
             marker: WorldCamera,
         });
 
+    // Scaling the quad and texture coordinates so we are only using a quadrant
+    // of the quad that is contained in a single triangle. This is to avoid
+    // graphical artifacts that appear along the quad's diagonal
     let scale = Vec3::new(2. * 16. / 9., 2., 0.);
     let mut mesh = Mesh::from(shape::Quad::new(2. * scale.truncate()));
     if let Some(VertexAttributeValues::Float32x2(uvs)) = mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0) {

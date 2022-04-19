@@ -16,11 +16,15 @@ pub struct TileSpec {
 #[derive(Component)]
 pub struct SolidCollider;
 
+#[derive(Component)]
+pub struct Tile;
+
 #[derive(Bundle)]
 pub struct SolidTile {
   #[bundle]
   pub sprite: SpriteBundle,
   pub collider: SolidCollider,
+  pub tile: Tile,
 }
 
 impl SolidTile {
@@ -39,6 +43,7 @@ impl SolidTile {
                 ..default()
             },
             collider: SolidCollider {},
+            tile: Tile {},
         };
 
         if let TileAppearance::Color(color) = spec.appearance {
