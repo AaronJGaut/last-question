@@ -9,7 +9,9 @@ use bevy::{
 
 use std::collections::HashSet;
 
-use last_question::pixel_perfect::{PixelPerfectPlugin, WorldCamera, PIXELS_PER_TILE, WIDTH_PIXELS, HEIGHT_PIXELS};
+use last_question::pixel_perfect::{
+    PixelPerfectPlugin, WorldCamera, HEIGHT_PIXELS, PIXELS_PER_TILE, WIDTH_PIXELS,
+};
 use last_question::tile;
 
 const INPUT_TIME_STEP: f32 = 1.0 / 300.0;
@@ -119,7 +121,7 @@ fn keyboard_input_system(
         }
     }
 
-    if !cfg!(target_arch="wasm32") {
+    if !cfg!(target_arch = "wasm32") {
         if keyboard_input.pressed(KeyCode::Escape) {
             app_exit_events.send(AppExit);
         }
@@ -183,7 +185,7 @@ fn tile_edit_system(
         if !tile_edit.interacted.contains(&cursor.to_array()) {
             match tile_edit.tool {
                 TileEditTool::Paintbrush => {
-                    tile_edit.interacted.insert(cursor.to_array()); 
+                    tile_edit.interacted.insert(cursor.to_array());
                     let mut exists = false;
                     for (_, tile_transform) in tile_query.iter() {
                         if tile_transform.translation.truncate().round().as_ivec2() == cursor {
@@ -193,12 +195,14 @@ fn tile_edit_system(
                     if !exists {
                         commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
                             pos: cursor,
-                            appearance: tile::TileAppearance::Texture(asset_server.load("tile.png")),
+                            appearance: tile::TileAppearance::Texture(
+                                asset_server.load("tile.png"),
+                            ),
                         }));
                     }
                 }
                 TileEditTool::Eraser => {
-                    tile_edit.interacted.insert(cursor.to_array()); 
+                    tile_edit.interacted.insert(cursor.to_array());
                     for (entity, tile_transform) in tile_query.iter() {
                         if tile_transform.translation.truncate().round().as_ivec2() == cursor {
                             commands.entity(entity).despawn_recursive();
@@ -300,7 +304,7 @@ enum TileEditTool {
 }
 
 struct TileEdit {
-    interacted: HashSet::<[i32; 2]>,
+    interacted: HashSet<[i32; 2]>,
     tool: TileEditTool,
     active: bool,
 }
@@ -333,8 +337,11 @@ impl ScreenToWorld {
         let cropped_width = dim.y * WIDTH_PIXELS as f32 / HEIGHT_PIXELS as f32;
         let cropped_x = point.x - (dim.x - cropped_width) / 2.;
         Vec2::new(
-            ((2. * cropped_x / cropped_width) - 1.) * WIDTH_PIXELS as f32 / (2. * PIXELS_PER_TILE as f32) + self.world_offset.x,
-            ((2. * point.y / dim.y) - 1.) * HEIGHT_PIXELS as f32 / (2. * PIXELS_PER_TILE as f32) + self.world_offset.y,
+            ((2. * cropped_x / cropped_width) - 1.) * WIDTH_PIXELS as f32
+                / (2. * PIXELS_PER_TILE as f32)
+                + self.world_offset.x,
+            ((2. * point.y / dim.y) - 1.) * HEIGHT_PIXELS as f32 / (2. * PIXELS_PER_TILE as f32)
+                + self.world_offset.y,
         )
     }
 }
@@ -402,10 +409,42 @@ fn startup_system(
     let appearance = tile::TileAppearance::Texture(asset_server.load("tile.png"));
     //let appearance = tile::TileAppearance::Color(Color::rgb(0., 1., 1.));
     for (x, y) in [
-        (-5, 0), (-4, 0), (-3, 0), (-2, 0), (-1, 0), (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0),
-        (5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 7), (5, 8), (5, 9), (5, 10), (5, 11),
-        (-5, 1), (-5, 2), (-5, 3), (-5, 4), (-5, 5), (-5, 6), (-5, 7), (-5, 8), (-5, 9), (-5, 10),
-        (2, 5), (3, 5), (-4, 3), (-3, 3),
+        (-5, 0),
+        (-4, 0),
+        (-3, 0),
+        (-2, 0),
+        (-1, 0),
+        (0, 0),
+        (1, 0),
+        (2, 0),
+        (3, 0),
+        (4, 0),
+        (5, 0),
+        (5, 1),
+        (5, 2),
+        (5, 3),
+        (5, 4),
+        (5, 5),
+        (5, 6),
+        (5, 7),
+        (5, 8),
+        (5, 9),
+        (5, 10),
+        (5, 11),
+        (-5, 1),
+        (-5, 2),
+        (-5, 3),
+        (-5, 4),
+        (-5, 5),
+        (-5, 6),
+        (-5, 7),
+        (-5, 8),
+        (-5, 9),
+        (-5, 10),
+        (2, 5),
+        (3, 5),
+        (-4, 3),
+        (-3, 3),
     ] {
         commands.spawn_bundle(tile::SolidTile::from_spec(tile::TileSpec {
             pos: IVec2::new(x, y),
@@ -421,10 +460,9 @@ fn main() {
         .insert_resource(WindowDescriptor {
             //resizable: true,
             resizable: false,
-            mode: if cfg!(target_arch="wasm32") {
+            mode: if cfg!(target_arch = "wasm32") {
                 WindowMode::Windowed
-            }
-            else {
+            } else {
                 WindowMode::BorderlessFullscreen
                 //WindowMode::Windowed
             },
@@ -439,7 +477,7 @@ fn main() {
                 .with_system(keyboard_input_system)
                 .with_system(mouse_input_system)
                 .with_system(update_screen_to_world_system)
-                .with_system(tile_edit_system)
+                .with_system(tile_edit_system),
         )
         .add_system_set(
             SystemSet::new()

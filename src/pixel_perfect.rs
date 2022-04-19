@@ -7,15 +7,12 @@
 // use case. Hopefully 0.7's render target improvements will let most
 // of this code go away.
 
-
 use bevy::{
-    core_pipeline::{
-        draw_2d_graph, node, RenderTargetClearColors, Transparent2d,
-    },
+    core_pipeline::{draw_2d_graph, node, RenderTargetClearColors, Transparent2d},
     prelude::*,
     render::{
+        camera::{ActiveCamera, Camera3d, CameraTypePlugin, RenderTarget, ScalingMode},
         mesh::VertexAttributeValues,
-        camera::{ActiveCamera, CameraTypePlugin, RenderTarget, Camera3d, ScalingMode},
         render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext, SlotValue},
         render_phase::RenderPhase,
         render_resource::{
@@ -41,31 +38,31 @@ pub struct PixelPerfectPlugin;
 
 impl Plugin for PixelPerfectPlugin {
     fn build(&self, app: &mut App) {
-      app.insert_resource(Msaa { samples: 1 }) // Use 4x MSAA
-          .add_plugin(CameraTypePlugin::<WorldCamera>::default())
-          .add_startup_system(setup);
+        app.insert_resource(Msaa { samples: 1 }) // Use 4x MSAA
+            .add_plugin(CameraTypePlugin::<WorldCamera>::default())
+            .add_startup_system(setup);
 
-      let render_app = app.sub_app_mut(RenderApp);
-      let driver = WorldCameraDriver::new(&mut render_app.world);
-      render_app.add_system_to_stage(RenderStage::Extract, extract_first_pass_camera_phases);
+        let render_app = app.sub_app_mut(RenderApp);
+        let driver = WorldCameraDriver::new(&mut render_app.world);
+        render_app.add_system_to_stage(RenderStage::Extract, extract_first_pass_camera_phases);
 
-      let mut graph = render_app.world.resource_mut::<RenderGraph>();
+        let mut graph = render_app.world.resource_mut::<RenderGraph>();
 
-      // Add a node for the first pass.
-      graph.add_node(FIRST_PASS_DRIVER, driver);
+        // Add a node for the first pass.
+        graph.add_node(FIRST_PASS_DRIVER, driver);
 
-      // The first pass's dependencies include those of the main pass.
-      graph
-          .add_node_edge(node::MAIN_PASS_DEPENDENCIES, FIRST_PASS_DRIVER)
-          .unwrap();
+        // The first pass's dependencies include those of the main pass.
+        graph
+            .add_node_edge(node::MAIN_PASS_DEPENDENCIES, FIRST_PASS_DRIVER)
+            .unwrap();
 
-      // Insert the first pass node: CLEAR_PASS_DRIVER -> FIRST_PASS_DRIVER -> MAIN_PASS_DRIVER
-      graph
-          .add_node_edge(node::CLEAR_PASS_DRIVER, FIRST_PASS_DRIVER)
-          .unwrap();
-      graph
-          .add_node_edge(FIRST_PASS_DRIVER, node::MAIN_PASS_DRIVER)
-          .unwrap();
+        // Insert the first pass node: CLEAR_PASS_DRIVER -> FIRST_PASS_DRIVER -> MAIN_PASS_DRIVER
+        graph
+            .add_node_edge(node::CLEAR_PASS_DRIVER, FIRST_PASS_DRIVER)
+            .unwrap();
+        graph
+            .add_node_edge(FIRST_PASS_DRIVER, node::MAIN_PASS_DRIVER)
+            .unwrap();
     }
 }
 
@@ -74,9 +71,9 @@ fn extract_first_pass_camera_phases(
     active: Res<ActiveCamera<WorldCamera>>,
 ) {
     if let Some(entity) = active.get() {
-        commands.get_or_spawn(entity).insert_bundle((
-            RenderPhase::<Transparent2d>::default(),
-        ));
+        commands
+            .get_or_spawn(entity)
+            .insert_bundle((RenderPhase::<Transparent2d>::default(),));
     }
 }
 
@@ -128,10 +125,9 @@ fn setup(
             label: None,
             size,
             dimension: TextureDimension::D2,
-            format: if cfg!(target_arch="wasm32") {
+            format: if cfg!(target_arch = "wasm32") {
                 TextureFormat::Rgba8UnormSrgb
-            }
-            else {
+            } else {
                 TextureFormat::Bgra8UnormSrgb
             },
             mip_level_count: 1,
@@ -154,17 +150,17 @@ fn setup(
 
     let mut cam_2d = OrthographicCameraBundle::new_2d();
     cam_2d.camera.target = render_target;
-    cam_2d.transform.scale = Vec3::new(1. / PIXELS_PER_TILE as f32, 1. / PIXELS_PER_TILE as f32, 1.);
-    commands
-        .spawn_bundle(OrthographicCameraBundle::<WorldCamera> {
-            camera: cam_2d.camera,
-            orthographic_projection: cam_2d.orthographic_projection,
-            visible_entities: cam_2d.visible_entities,
-            frustum: cam_2d.frustum,
-            transform: cam_2d.transform,
-            global_transform: cam_2d.global_transform,
-            marker: WorldCamera,
-        });
+    cam_2d.transform.scale =
+        Vec3::new(1. / PIXELS_PER_TILE as f32, 1. / PIXELS_PER_TILE as f32, 1.);
+    commands.spawn_bundle(OrthographicCameraBundle::<WorldCamera> {
+        camera: cam_2d.camera,
+        orthographic_projection: cam_2d.orthographic_projection,
+        visible_entities: cam_2d.visible_entities,
+        frustum: cam_2d.frustum,
+        transform: cam_2d.transform,
+        global_transform: cam_2d.global_transform,
+        marker: WorldCamera,
+    });
 
     // Scaling the quad and texture coordinates so we are only using a quadrant
     // of the quad that is contained in a single triangle. This is to avoid
@@ -184,16 +180,15 @@ fn setup(
         unlit: true,
         ..default()
     });
-    commands
-        .spawn_bundle(PbrBundle {
-            mesh: quad_handle,
-            material: material_handle,
-            transform: Transform {
-                translation: Vec3::new(scale.x / 2., -scale.y / 2., 0.),
-                ..default()
-            },
+    commands.spawn_bundle(PbrBundle {
+        mesh: quad_handle,
+        material: material_handle,
+        transform: Transform {
+            translation: Vec3::new(scale.x / 2., -scale.y / 2., 0.),
             ..default()
-        });
+        },
+        ..default()
+    });
 
     // The main pass camera.
     let cam_2d = OrthographicCameraBundle::new_2d();

@@ -3,7 +3,7 @@
     <meta charset="UTF-8" />
     <style>
       body {
-	margin: 0;
+        margin: 0;
       }
       canvas {
         background-color: magenta;
@@ -13,6 +13,7 @@
   <script type="module">
     import init from './last-question.js'
     init().catch(() => {
+      // Disable context menu to support right click
       const canvas = document.querySelector('body>canvas');
       canvas.oncontextmenu = () => false;
     });

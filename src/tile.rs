@@ -21,10 +21,10 @@ pub struct Tile;
 
 #[derive(Bundle)]
 pub struct SolidTile {
-  #[bundle]
-  pub sprite: SpriteBundle,
-  pub collider: SolidCollider,
-  pub tile: Tile,
+    #[bundle]
+    pub sprite: SpriteBundle,
+    pub collider: SolidCollider,
+    pub tile: Tile,
 }
 
 impl SolidTile {
